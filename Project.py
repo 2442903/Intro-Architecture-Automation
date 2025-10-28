@@ -65,6 +65,11 @@ while quit == False:
             exit
         case _:
             print("Invalid option.")
+""" 
+Used code from
+ https://stackoverflow.com/questions/3586106/perform-commands-over-ssh-with-python
+ https://www.geeksforgeeks.org/python/display-hostname-ip-address-python/
 
-# Used code from https://stackoverflow.com/questions/3586106/perform-commands-over-ssh-with-python
-# used code from https://www.geeksforgeeks.org/python/display-hostname-ip-address-python/
+https://brightdata.com/blog/how-tos/wget-with-python
+
+"""
