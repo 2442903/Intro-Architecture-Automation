@@ -2,10 +2,11 @@ import datetime
 import socket
 import pexpect
 
-password = "Train1ng$"
-USER = "sysadmin"
-REMOTE_IP = "192.168.1.86"
-REMOTE_CMD = f"ssh {USER}@{REMOTE_IP}"
+class userLogin:
+    PASSWORD = "Train1ng$"
+    USER = "sysadmin"
+    REMOTE_IP = "192.168.1.86"
+    REMOTE_CMD = f"ssh {USER}@{REMOTE_IP}"
 
 class bcolors:
     HEADER = '\033[95m'
@@ -30,6 +31,10 @@ def colorize(color: bcolors, message: str):
 
     - message (str): string to be prepended and appended with formatting.
 
+    Returns:
+
+    - output (str): colorized text by way of formatting characters at the start and end of the string 
+
     """
 
     # Add formatting characters to the beginning and end of a string.
@@ -45,15 +50,21 @@ def cleanUserInput(msg: str, type_case = ""):
     Parameters:
 
     - msg (str): user generated string to be sanitized.
+     
+    - type_case (char): select how to format the characters in the msg string (e.g. 'U' = upper, 'L' = lower)
+
+    Returns:
+
+    - data (str): user input that has been modified to cause fewer issues
 
     """
-    
-    data = input(colorize("OKCYAN", msg))
 
-    match type_case:
-        case "u":
+    data = input(colorize("OKCYAN", msg)).strip()
+
+    match type_case.upper():
+        case "U":
             return data.upper()
-        case "l": 
+        case "L": 
             return data.lower()
         case _:
             return data
@@ -75,6 +86,7 @@ def exeCLICommand(cmd: str, remote = False):
     """
 
     try:
+        
         # Spawn a CLI subprocess to handle input
         ssh = pexpect.spawn(cmd)
 
@@ -82,7 +94,7 @@ def exeCLICommand(cmd: str, remote = False):
         # wait for the machine to request the password and pass it through.
         if (remote == True):
             ssh.expect("password:")
-            ssh.sendline(password)
+            ssh.sendline(userLogin.PASSWORD)
         
         # direct output by using a print function once concluded.
         ssh.expect(pexpect.EOF)
@@ -103,7 +115,7 @@ def remoteHomeDir():
 
     # Append the command for listing the home directory to the remote ssh command then,
     #  pass to the execute function as a remote execution
-    new_cmd = REMOTE_CMD + " ls ~"
+    new_cmd = userLogin.REMOTE_CMD + " ls ~"
     exeCLICommand(new_cmd, True)
 
 def remoteBackup(file: str):
@@ -120,10 +132,10 @@ def remoteBackup(file: str):
 
     # Append the command for backing up a file to the remote ssh command then,
     #  pass to the execute function as a remote execution
-    new_cmd = REMOTE_CMD + f" cp -v {file} {file}.old"
+    new_cmd = userLogin.REMOTE_CMD + f" cp -v {file} {file}.old"
     exeCLICommand(new_cmd, True)
 
-def copyURLDocs(url: str, html_only = True, file_dir = "", file_name = ""):
+def copyURLDocs(url: str, html_only = True, file_name = ""):
 
     """
 
@@ -139,34 +151,23 @@ def copyURLDocs(url: str, html_only = True, file_dir = "", file_name = ""):
 
     """
 
-    optional_flags = {}
-    flags_str = ""
+    flags_str = str("")
 
     # Add flags for recursion, set the depth to 1, and convert links to maintain webpage funtionality offline.
     if (html_only == False):
-        flags_str += "--recursive --level=1 --convert-links"
+        flags_str += "--recursive --level=1 --convert-links "
 
-    # Change dir flag:
-    if (file_dir != ""):
-        optional_flags["--directory-prefix="] = file_dir
-
-    # Output doc name flag:
+    # Adds a flag for changing the name of the file to a user generated selection.
     if (file_name != ""):
-        optional_flags["--output-document="] = file_name
+        flags_str += "--output-document=" + file_name
     else:
-        # Add the -N flag to ensure the Wget command only downloads a copy of the webpage if the file timestamp has changed.
+        # Add the timestamps flag to ensure the Wget command only downloads a copy of the webpage if the file timestamp has changed.
         # This is mutally exclusive with changing the document name.
-        flags_str += "--timestamping"
+        # May not work on certain websites due to a lack of a timestamp.
+        flags_str += "--timestamping "
 
-    # Form the key value pairs into a string for use in the wget command if present.
-    if (len(optional_flags) != 0):
-        for key in optional_flags:
-            flags_str += str(key + optional_flags[key])
-
-    # Create the final command to pass to the execute function.
-    cmd = f"wget {flags_str} {url}"
-
-    exeCLICommand(cmd)   
+    # Create the final command to pass through to the execute function.
+    exeCLICommand(f"wget {flags_str} {url}")   
 
 quit = False
 while quit == False:
@@ -236,14 +237,9 @@ while quit == False:
                     # This is only if the user chooses to download ONLY the .html
                     # Have Wget rename the index.html to the user generated input.
                     name = cleanUserInput("Please provide a name for the download:\n")
-
-                if cleanUserInput("Do you wish to change the download location? [y/N]\n", "u") == "Y":
-
-                    # Have Wget download the file to the user generated folder.
-                    dir = cleanUserInput("Please provide the desired download folder:\n")
                 
             # Download the web documents of the user given url.
-            copyURLDocs(cleanUserInput("\nPlease provide a valid URL: \n"), answer_html, dir, name)
+            copyURLDocs(cleanUserInput("\nPlease provide a valid URL: \n"), answer_html, name)
 
         case "Q":
 
