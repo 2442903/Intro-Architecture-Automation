@@ -31,7 +31,9 @@ def colorize(color: bcolors, message: str):
     - message (str): string to be prepended and appended with formatting.
 
     """
-    # 
+
+    # Add formatting characters to the beginning and end of a string.
+    # Character specified by passed through attribute.
     return  getattr(bcolors, color.upper()) + message + bcolors.ENDC
 
 def cleanUserInput(msg: str, type_case = ""):
@@ -45,15 +47,18 @@ def cleanUserInput(msg: str, type_case = ""):
     - msg (str): user generated string to be sanitized.
 
     """
+    
+    data = input(colorize("OKCYAN", msg))
+
     match type_case:
         case "u":
-            data = input(colorize("OKCYAN", msg)).upper()
+            return data.upper()
         case "l": 
-            data = input(colorize("OKCYAN", msg)).lower()
+            return data.lower()
         case _:
-            data = input(colorize("OKCYAN", msg))
+            return data
 
-    return data
+    
 
 def exeCLICommand(cmd: str, remote = False):
 
@@ -70,22 +75,22 @@ def exeCLICommand(cmd: str, remote = False):
     """
 
     try:
-
-        # Execute the command and pipe the results to the CLI
-        # Possible failure case: If the host does not recognise and trust the remote machine, 
-        # the child process will timeout waiting for a response to the trust machine query
-
+        # Spawn a CLI subprocess to handle input
         ssh = pexpect.spawn(cmd)
+
+        # If executing code on a remote terminal, 
+        # wait for the machine to request the password and pass it through.
         if (remote == True):
             ssh.expect("password:")
             ssh.sendline(password)
+        
+        # direct output by using a print function once concluded.
         ssh.expect(pexpect.EOF)
         print(ssh.before.decode("utf-8"))
 
     except Exception as e:
 
         # If an exception occurs, print the exception message as an error
-
         print(colorize("FAIL", "An error has occurred:\n" + str(e)))
 
 def remoteHomeDir():
@@ -95,6 +100,7 @@ def remoteHomeDir():
     Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
 
     """
+
     # Append the command for listing the home directory to the remote ssh command then,
     #  pass to the execute function as a remote execution
     new_cmd = REMOTE_CMD + " ls ~"
@@ -111,6 +117,7 @@ def remoteBackup(file: str):
     - file (str): The location and name of a remote file. 
 
     """
+
     # Append the command for backing up a file to the remote ssh command then,
     #  pass to the execute function as a remote execution
     new_cmd = REMOTE_CMD + f" cp -v {file} {file}.old"
@@ -131,6 +138,7 @@ def copyURLDocs(url: str, html_only = True, file_dir = "", file_name = ""):
     - file_name (str): Optional input for setting the file name of the Scraped files
 
     """
+
     optional_flags = {}
     flags_str = ""
 
@@ -208,7 +216,8 @@ while quit == False:
             remoteBackup(cleanUserInput("\nPlease input the file path: \n"))
 
         case "5":
-
+            
+            # By default the program only scrapes the .html and saves it at the execution directory as index.html
             answer_html = True
             dir = ""
             name = ""
@@ -216,14 +225,20 @@ while quit == False:
             if cleanUserInput("\nDo you wish to change any of the default options? [y/N]\n", "u") == "Y":
 
                 if cleanUserInput("Do you wish to download only HTML? [Y/n]\n", "u")== "N":
+
+                    # This is if the user wishes to download more than just the .html
                     # Recursively download the site with a depth of one and preserve links.
                     answer_html = False
-                # Only offer to change the name of the download in the case that only html is being downloaded.
+
+                # Only offer to change the name of the download in the case that ONLY the .html is being downloaded.
                 elif cleanUserInput("Do you wish to chnage the name of the download? [y/N]\n", "u") == "Y":
+
+                    # This is only if the user chooses to download ONLY the .html
                     # Have Wget rename the index.html to the user generated input.
                     name = cleanUserInput("Please provide a name for the download:\n")
 
                 if cleanUserInput("Do you wish to change the download location? [y/N]\n", "u") == "Y":
+
                     # Have Wget download the file to the user generated folder.
                     dir = cleanUserInput("Please provide the desired download folder:\n")
                 
