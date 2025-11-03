@@ -1,5 +1,8 @@
 import datetime
 import socket
+
+### Add try except to this import due to limitations with non-Linux operating systems
+
 import pexpect
 
 class userLogin:
@@ -151,6 +154,8 @@ def copyURLDocs(url: str, html_only = True, file_name = ""):
 
     """
 
+    ### Simplify this function by condensing logical operations
+
     flags_str = str("")
 
     # Add flags for recursion, set the depth to 1, and convert links to maintain webpage funtionality offline.
@@ -193,6 +198,8 @@ while quit == False:
 
             # Print the local date and time of the host machine. 
             # Format: yyyy-mm-dd hh:mm:ss.{milliseconds}
+            
+            ### Add .replace(microsecond = 0) to the datetime.now() function
 
             print(colorize("OKCYAN", "\nThe current Date and Time:\n") + str(datetime.datetime.now()), "\n")
 
@@ -217,6 +224,9 @@ while quit == False:
             remoteBackup(cleanUserInput("\nPlease input the file path: \n"))
 
         case "5":
+
+            ### Overwrite this case to move any logical operations into the function rather than the match case
+
             
             # By default the program only scrapes the .html and saves it at the execution directory as index.html
             answer_html = True
@@ -264,3 +274,4 @@ Used code from
     https://www.baeldung.com/linux/ssh-scp-password-subprocess
 
 """
+
