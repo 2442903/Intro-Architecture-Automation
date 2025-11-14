@@ -187,8 +187,8 @@ def main():
 
                 # Get local and public IP addresses
                 
-                print(colors.colorize("OKCYAN", "\nYour private IP Address is: ") + get_local_ip())
-                print(colors.colorize("OKCYAN", "Your public IP Address is:  ") + get_public_ip())
+                print(colorize("OKCYAN", "\nYour private IP Address is: ") + get_local_ip())
+                print(colorize("OKCYAN", "Your public IP Address is:  ") + get_public_ip())
                 
             case "3":
 
@@ -234,3 +234,4 @@ Used code from
     https://www.baeldung.com/linux/ssh-scp-password-subprocess
 
 """
+
