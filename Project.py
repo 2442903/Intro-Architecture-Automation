@@ -1,6 +1,19 @@
 import datetime
+import urllib.request
+import urllib.error
 import socket
-import pexpect
+import sys
+from colors import colorize
+
+# Attempt to import paramiko, as it's the only non-standard library.
+
+try:
+    import paramiko
+except ImportError:
+    print(colorize("FAIL", "FATAL ERROR: The 'paramiko' library is required."))
+    print(colorize("WARNING", "Please install it using: pip install paramiko"))
+    sys.exit(1)
+
 
 class userLogin:
     PASSWORD = "Train1ng$"
@@ -8,250 +21,207 @@ class userLogin:
     REMOTE_IP = "192.168.1.86"
     REMOTE_CMD = f"ssh {USER}@{REMOTE_IP}"
 
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
-def colorize(color: bcolors, message: str):
+def clean_user_input(msg: str, type_case: str = "") -> str:
 
     """
-     
-    Add specific formatting characters to a given string.
-
-    Parameters:
-
-    - color (bcolors): formatting attribute from a predefined list of characters.
-
-    - message (str): string to be prepended and appended with formatting.
-
-    Returns:
-
-    - output (str): colorized text by way of formatting characters at the start and end of the string 
-
-    """
-
-    # Add formatting characters to the beginning and end of a string.
-    # Character specified by passed through attribute.
-    return  getattr(bcolors, color.upper()) + message + bcolors.ENDC
-
-def cleanUserInput(msg: str, type_case = ""):
-
-    """
-
     Sanitize user input before returning the data.
 
     Parameters:
-
-    - msg (str): user generated string to be sanitized.
-     
-    - type_case (char): select how to format the characters in the msg string (e.g. 'U' = upper, 'L' = lower)
+    - msg (str): The prompt message to display to the user.    
+    - type_case (char): A flag to control case formatting: (e.g. 'U' = upper, 'L' = lower)
 
     Returns:
+    - str: The sanitized, stripped, and case-formatted user input.
 
-    - data (str): user input that has been modified to cause fewer issues
-
-    """
-
-    data = input(colorize("OKCYAN", msg)).strip()
-
-    match type_case.upper():
-        case "U":
-            return data.upper()
-        case "L": 
-            return data.lower()
-        case _:
-            return data
-
-    
-
-def exeCLICommand(cmd: str, remote = False):
-
-    """
-
-    Spawn a child process to run CLI commands and print the output to the terminal.
-
-    Parameters:
-
-    - cmd (str): The CLI command to execute.
-
-    - remote (bool): Executes the command on a remote machine if true (Default: False)
-
+    Raises:
+    - SystemExit: If the user triggers a KeyboardInterrupt (Ctrl+C) 
+                  or EOFError (Ctrl+D), the program will exit gracefully.
     """
 
     try:
-        
-        # Spawn a CLI subprocess to handle input
-        ssh = pexpect.spawn(cmd)
+        # Get input, colorize the prompt, and strip leading/trailing whitespace
+        data = input(colorize("OKCYAN", msg)).strip()
 
-        # If executing code on a remote terminal, 
-        # wait for the machine to request the password and pass it through.
-        if (remote == True):
-            ssh.expect("password:")
-            ssh.sendline(userLogin.PASSWORD)
-        
-        # direct output by using a print function once concluded.
-        ssh.expect(pexpect.EOF)
-        print(ssh.before.decode("utf-8"))
+        # Standardize the input to a specific case if requested
+        match type_case.upper():
+            case "U":
+                return data.upper()
+            case "L":
+                return data.lower()
+            case _:
+                return data
 
-    except Exception as e:
-
-        # If an exception occurs, print the exception message as an error
-        print(colorize("FAIL", "An error has occurred:\n" + str(e)))
-
-def remoteHomeDir():
+    except (KeyboardInterrupt, EOFError):
+        # Handle user interruption (Ctrl+C or Ctrl+D)
+        print(colorize("WARNING", "\nInput cancelled by user. Exiting..."))
+        sys.exit(1) # Exit the program cleanly
+    
+def get_local_ip() -> str:
 
     """
+    Get the local IP address by connecting to an external server.
+    """
 
+    try:
+        # Connect to a well-known external IP (Google's DNS)
+        # This doesn't send any data; it just finds the right local interface.
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception as e:
+        return f"Could not determine IP: {e}"
+
+def get_public_ip() -> str:
+
+    """
+    Get the public IP address from an external service.
+    """
+
+    try:
+        with urllib.request.urlopen("https://checkip.amazonaws.com") as response:
+            ip = response.read().decode("utf-8").strip()
+            return ip
+    except urllib.error.URLError as e:
+        return f"Could not fetch public IP: {e.reason}"
+    
+def exe_cli_command(cmd: str, remote: bool = False):
+
+    """
+    Spawn a child process to run CLI commands and print the output to the terminal.
+
+    Parameters:
+    - cmd (str): The CLI command to execute.
+    - remote (bool): Executes the command on a remote machine if true (Default: False)
+    """
+
+    #Paramiko implimentation needed here to replace pexpect to resolve issue of linux dependancy
+
+def remote_home_dir():
+
+    """
     Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
-
     """
 
     # Append the command for listing the home directory to the remote ssh command then,
-    #  pass to the execute function as a remote execution
+    # Execute the new command though the CLI function as a remote execution 
     new_cmd = userLogin.REMOTE_CMD + " ls ~"
-    exeCLICommand(new_cmd, True)
+    exe_cli_command(new_cmd, True)
 
-def remoteBackup(file: str):
+def remote_backup(file: str):
 
     """
-
     Perform a simple "cp" command on a remote machine and append the ".old" suffix to the copied file.
 
     Parameters:
-
     - file (str): The location and name of a remote file. 
-
     """
 
     # Append the command for backing up a file to the remote ssh command then,
     #  pass to the execute function as a remote execution
     new_cmd = userLogin.REMOTE_CMD + f" cp -v {file} {file}.old"
-    exeCLICommand(new_cmd, True)
+    exe_cli_command(new_cmd, True)
 
-def copyURLDocs(url: str, html_only = True, file_name = ""):
+def copy_url_docs(url: str):
 
     """
-
     Download the web documents of the user given url.
 
     Parameters:
-
     - url (str): The target webpage which the user has entered to scrape.
-
-    - file_dir (str): Optional input for setting the destination of the scraped files
-
-    - file_name (str): Optional input for setting the file name of the Scraped files
-
     """
 
+    # By default the program only scrapes the .html,
+    # and saves it at the execution directory as the name it wass scraped as.
     flags_str = str("")
 
-    # Add flags for recursion, set the depth to 1, and convert links to maintain webpage funtionality offline.
-    if (html_only == False):
-        flags_str += "--recursive --level=1 --convert-links "
+    if clean_user_input("\nDo you wish to change any of the default options? [y/N]\n", "u") == "Y":
 
-    # Adds a flag for changing the name of the file to a user generated selection.
-    if (file_name != ""):
-        flags_str += "--output-document=" + file_name
-    else:
-        # Add the timestamps flag to ensure the Wget command only downloads a copy of the webpage if the file timestamp has changed.
-        # This is mutally exclusive with changing the document name.
-        # May not work on certain websites due to a lack of a timestamp.
-        flags_str += "--timestamping "
+        if clean_user_input("Do you wish to download only HTML? [Y/n]\n", "u")== "N":
 
-    # Create the final command to pass through to the execute function.
-    exeCLICommand(f"wget {flags_str} {url}")   
+            # Recursively download the site with a depth of one and preserve links to maintain webpage funtionality offline.
+            print(colorize("OKCYAN", "Download all webpage data..."))
+            flags_str += "--recursive --level=1 --convert-links "
 
-quit = False
-while quit == False:
+        # Only offer to change the name of the download in the case that ONLY the .html is being downloaded.
+        elif clean_user_input("Do you wish to chnage the name of the download? [y/N]\n", "u") == "Y":
 
-    """
+            # Have Wget rename the index.html to the user generated input.
+            file_name = clean_user_input("Please provide a name for the download:\n")
+            flags_str += "--output-document=" + file_name
 
-    Simple while loop to maintain a CLI menu.
-    Runs indefinately until the user enters "q" or "Q" into the terminal.
+    # This is mutally exclusive with changing the document name and downloading more than the html
+    if (flags_str == ""):
 
-    """
+            # If enabled Wget only downloads a copy, if the file timestamp has changed.           
+            # May not work on certain websites due to a lack of a timestamp. (e.g. Google.com)
+            print(colorize("OKCYAN", "Using default options..."))
+            flags_str += "--timestamping "
 
-    print(colorize("OKBLUE",  "Please choose an option:\n") +
-          colorize("OKCYAN",  "1)Show date and time (local computer)\n"  + 
-                              "2)Show IP address (local computer)\n" + 
-                              "3)Show remote home directory listing\n" +
-                              "4)Backup remote file\n" +
-                              "5)Save web page\n") +
-          colorize("WARNING", "Q) Quit\n"))
+    exe_cli_command(f"wget {flags_str} {url}")   
+
+def main():
+
+    while True:
+
+        """
+        Simple while loop to maintain a CLI menu.
+        Runs indefinately until the user enters "q" or "Q" into the terminal.
+        """
     
-    match cleanUserInput("", "u"):
+        match clean_user_input(colorize("OKBLUE", "Please choose an option:\n") +
+                            colorize("OKCYAN",  "1)Show date and time (local computer)\n"  + 
+                                                "2)Show IP address (local computer)\n" + 
+                                                "3)Show remote home directory listing\n" +
+                                                "4)Backup remote file\n" +
+                                                "5)Save web page\n") +
+                            colorize("WARNING", "Q) Quit\n"), "u"):
 
-        case "1":
+            case "1":
 
-            # Print the local date and time of the host machine. 
-            # Format: yyyy-mm-dd hh:mm:ss.{milliseconds}
+                # Print the local date and time of the host machine. 
+                # Format: yyyy-mm-dd hh:mm:ss
 
-            print(colorize("OKCYAN", "\nThe current Date and Time:\n") + str(datetime.datetime.now()), "\n")
+                print(colorize("OKCYAN", "\nThe current Date and Time:\n") + str(datetime.datetime.now().replace(microsecond = 0)), "\n")         
 
-        case "2":
+            case "2":
 
-            # Get the private ip address by way of getting the host socket information.
-            # Potential faliure case: if there is no internet connection expect the return of the loopback address instead.
-
-            print(colorize("OKCYAN", "\nYour private IP Address is:\n") + str(socket.gethostbyname(socket.gethostname())), "\n")
-
-        case "3":
-
-            # Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
-
-            print(colorize("OKCYAN", "\nRemote Home Directory listing:"))
-            remoteHomeDir()
-
-        case "4":
-
-            # Perform a simple "cp" command on a remote machine and append the ".old" suffix to the copied file.
-
-            remoteBackup(cleanUserInput("\nPlease input the file path: \n"))
-
-        case "5":
-            
-            # By default the program only scrapes the .html and saves it at the execution directory as index.html
-            answer_html = True
-            dir = ""
-            name = ""
-
-            if cleanUserInput("\nDo you wish to change any of the default options? [y/N]\n", "u") == "Y":
-
-                if cleanUserInput("Do you wish to download only HTML? [Y/n]\n", "u")== "N":
-
-                    # This is if the user wishes to download more than just the .html
-                    # Recursively download the site with a depth of one and preserve links.
-                    answer_html = False
-
-                # Only offer to change the name of the download in the case that ONLY the .html is being downloaded.
-                elif cleanUserInput("Do you wish to chnage the name of the download? [y/N]\n", "u") == "Y":
-
-                    # This is only if the user chooses to download ONLY the .html
-                    # Have Wget rename the index.html to the user generated input.
-                    name = cleanUserInput("Please provide a name for the download:\n")
+                # Get local and public IP addresses
                 
-            # Download the web documents of the user given url.
-            copyURLDocs(cleanUserInput("\nPlease provide a valid URL: \n"), answer_html, name)
+                print(colorize("OKCYAN", "\nYour private IP Address is: ") + get_local_ip())
+                print(colorize("OKCYAN", "Your public IP Address is:  ") + get_public_ip())
+                
+            case "3":
 
-        case "Q":
+                # Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
 
-            # Quit the menu and end the program.
+                print(colorize("OKCYAN", "\nRemote Home Directory listing:"))
+                remote_home_dir()
 
-            print(colorize("WARNING","\nShutdown..."))
-            quit = True
-            exit
+            case "4":
 
-        case _:
+                # Perform a simple "cp" command on a remote machine and append the ".old" suffix to the copied file.
 
-            print(colorize("WARNING", "\nInvalid option.\n"))
+                remote_backup(clean_user_input("\nPlease input the file path: \n"))
+
+            case "5":
+                
+                # Download the web documents of the user given url.
+                copy_url_docs(clean_user_input("\nPlease provide a valid URL: \n"))
+
+            case "Q":
+
+                # Quit the menu and end the program.
+
+                print(colorize("WARNING","\nShutdown..."))
+                break
+
+            case _:
+
+                #Defualt case should catch as misinputs or invalid strings.
+                print(colorize("WARNING", "\nInvalid option.\n"))
+
+if __name__ == "__main__":
+    main()
 
 """ 
 
@@ -264,3 +234,4 @@ Used code from
     https://www.baeldung.com/linux/ssh-scp-password-subprocess
 
 """
+
