@@ -10,22 +10,33 @@ class colors:
     UNDERLINE = '\033[4m'
 
     @staticmethod
-    def colorize(color: str, message: str) -> str:
-
-        """        
-        Add specific formatting characters to a given string.
+    def colorize(*attributes, message: str) -> str:
+        """
+        Applies multiple formatting attributes to a message string.
 
         Parameters:
-        - color (str): Formatting attribute (e.g., "FAIL", "OKGREEN").
-        - message (str): String to be colorized.
+        - *attributes (str): Variable number of attribute names
+                             (e.g., "BOLD", "FAIL", "UNDERLINE").
+        - message (str): The string to be formatted. This MUST
+                         be passed as a keyword argument.
 
         Returns:
-        - str: The colorized string.
+        - str: The colorized and formatted string.
+        
+        Example:
+        colors.colorize("BOLD", "FAIL", message="This is a bold failure.")
         """
-
-        # Add formatting characters to the beginning and end of a string.
-        # Character specified by passed through attribute.
-        try:
-            return  getattr(colors, color.upper()) + message + colors.ENDC
-        except AttributeError:
-            return message # Return unformatted if color name is invalid
+        
+        prefix = ""
+        for attr in attributes:
+            try:
+                # Get the ANSI code for the attribute and add it to the prefix
+                code = getattr(colors, attr.upper())
+                prefix += code
+                
+            except AttributeError:
+                # Handle invalid attribute names
+                print(f"(Colorize Warning: Unknown attribute '{attr}')")
+        
+        # Combine the prefix, message, and the universal reset code
+        return f"{prefix}{message}{colors.ENDC}"
