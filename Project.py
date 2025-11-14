@@ -10,10 +10,13 @@ from colors import colors
 
 try:
     import paramiko
+    PARAMIKO_AVAILABLE = True
 except ImportError:
-    print(colors.colorize("FAIL", "FATAL ERROR: The 'paramiko' library is required."))
-    print(colors.colorize("WARNING", "Please install it using: pip install paramiko"))
-    sys.exit(1)
+    print(colors.colorize("WARNING", 
+    "The 'paramiko' library was not found.\n" +
+    "Local functions (1, 2, 5) will still work.\n" + 
+    "Please install it using: pip install paramiko\n"))
+    PARAMIKO_AVAILABLE = False
 
 class userLogin:
     PASSWORD = "Train1ng$"
@@ -51,15 +54,16 @@ def clean_user_input(msg: str, type_case: str = "") -> str:
             case _:
                 return data
 
-    except (KeyboardInterrupt, EOFError):
-        # Handle user interruption (Ctrl+C or Ctrl+D)
+    except (KeyboardInterrupt, EOFError): # Handle user interruption (Ctrl+C or Ctrl+D)
         print(colors.colorize("WARNING", "\nInput cancelled by user. Exiting..."))
         sys.exit(1) # Exit the program cleanly
 
 def wait_for_user():
+
     """
     Wait for the user to hit enter before displaying a menu once again.
     """
+
     input("Press Enter to continue...\n")
     
 def get_local_ip() -> str:
@@ -86,7 +90,7 @@ def get_public_ip() -> str:
     """
 
     try:
-
+        # Check with AWS to get the public Ip of localhost.
         with urllib.request.urlopen("https://checkip.amazonaws.com") as response:
             ip = response.read().decode("utf-8").strip()
             return ip
@@ -114,13 +118,13 @@ def setup_cli() -> paramiko.SSHClient | None:
         print(colors.colorize("OKGREEN", "Connection Successful!"))
         return client
 
-    except paramiko.ssh_exception.AuthenticationException:
+    except paramiko.ssh_exception.AuthenticationException: # Failed to log in i.e incorrect user or password.
         print(colors.colorize("FAIL", "\nAuthentication Failed. Check username/password."))
-    except paramiko.ssh_exception.NoValidConnectionsError:
+    except paramiko.ssh_exception.NoValidConnectionsError: # Failed to port forward or lost connection to the remote machine.
         print(colors.colorize("FAIL", f"\nUnable to connect to port 22 on {userLogin.REMOTE_IP}."))
-    except socket.timeout:
+    except socket.timeout: # Failed to return anything in a timely manner.
         print(colors.colorize("FAIL", "\nConnection timed out."))
-    except Exception as e:
+    except Exception as e: # Default case to catch anything not covered.
         print(colors.colorize("FAIL", f"\nAn unexpected SSH error occurred: {e}"))
         
     return None
@@ -201,10 +205,10 @@ def remote_home_dir(client: paramiko.SSHClient):
     # Execute the new command though the CLI function as a remote execution 
     print(colors.colorize("OKCYAN", "\nRemote Home Directory listing:"))
     
-    # 1. Run the command
+    # Run the command
     out, err = exe_cli_command(client, "ls -lA ~")
     
-    # 2. Report the result
+    # Report the result
     # We use the defaults: no prefix, OKCYAN for out, WARNING for err.
     cli_results(out, err)
 
@@ -247,10 +251,10 @@ def remote_backup(client: paramiko.SSHClient):
         safe_path = shlex.quote(file_path)
     command = f"cp -v {safe_path} {safe_path}.old"
 
-    # 1. Run the command
+    # Run the command
     out, err = exe_cli_command(client, command)
     
-    # 2. Report the result, with custom formatting
+    # Report the results
     cli_results(out, err,
                         success_prefix="Backup successful:\n",
                         success_color="OKGREEN",
@@ -264,7 +268,7 @@ def copy_url_docs(url: str):
     Parameters:
     - url (str): The target webpage which the user has entered to scrape.
     """
-
+    # Append http if not present.
     if not (url.startswith("http://") or url.startswith("https://")):
         url = "https://" + url
         print(colors.colorize("OKCYAN", f"Prepending 'https://'. Using URL: {url}"))
@@ -274,36 +278,35 @@ def copy_url_docs(url: str):
         default_name = url.split('/')[-1]
         if not default_name or '.' not in default_name:
             default_name = "index.html"
-            
-        file_name = clean_user_input(f"Enter file name to save as '{default_name}': ")
+    
+        file_name = clean_user_input(f"Enter file name to save '{default_name}' as: ")
         if not file_name:
             file_name = default_name
 
         print(colors.colorize("OKCYAN", f"Downloading content from {url}..."))
         
+        # Make a request for the web page and save the data returned.
         with urllib.request.urlopen(url) as response:
             content = response.read()
-            
+
+        # Write the content of the web page to a file on the system.    
         with open(file_name, 'wb') as f:
             f.write(content)
             
         print(colors.colorize("OKGREEN", f"\nSuccessfully saved page to '{file_name}' ({len(content)} bytes)."))
 
-    except (urllib.error.HTTPError, urllib.error.URLError) as e:
+    except (urllib.error.HTTPError, urllib.error.URLError) as e: # Check for issues with a lack of http or a non functional url
         print(colors.colorize("FAIL", f"\nFailed to retrieve URL: {e.reason}"))
-    except ValueError as e:
+    except ValueError as e: # Check for invalid objects when asking for the url
         print(colors.colorize("FAIL", f"\nInvalid URL: {e}"))
-    except IOError as e:
+    except IOError as e: # Check for any issues writing to a file on the system
         print(colors.colorize("FAIL", f"\nFailed to write file '{file_name}': {e}"))
-    except Exception as e:
+    except Exception as e: # Default case to catch anything else
         print(colors.colorize("FAIL", f"\nAn unexpected error occurred: {e}"))
 
 def main():
 
     cli_client = setup_cli()
-    if cli_client is None:
-        print(colors.colorize("FAIL", "Could not establish remote connection. Exiting."))
-        sys.exit(1)
 
     while True:
 
@@ -311,14 +314,36 @@ def main():
         Simple while loop to maintain a CLI menu.
         Runs indefinately until the user enters "q" or "Q" into the terminal.
         """
+
+        construct_menu = (
+            colors.colorize("OKBLUE",
+            "Please choose an option:\n") +
+            colors.colorize("OKCYAN", 
+            "1) Show date and time (local computer)\n" +
+            "2) Show IP address (local computer)\n")
+            )
+        
+        # Only add remote options if paramiko (and thus the client) is available
+        if PARAMIKO_AVAILABLE and cli_client:
+            construct_menu = (construct_menu + 
+                colors.colorize("OKCYAN", 
+                "3) Show remote home directory listing\n" +
+                "4) Backup remote file\n"))
+        else:
+            construct_menu = (construct_menu +
+                colors.colorize("GREY", 
+                "3) Show remote home directory listing\n" +
+                "4) Backup remote file\n"))
+        
+        construct_menu = (
+            construct_menu + 
+            colors.colorize("OKCYAN", 
+            "5) Save web page\n") + 
+            colors.colorize("WARNING", 
+            "Q) Quit\n")
+            )
     
-        match clean_user_input(colors.colorize("OKBLUE", "Please choose an option:\n") +
-                            colors.colorize("OKCYAN",  "1)Show date and time (local computer)\n"  + 
-                                                "2)Show IP address (local computer)\n" + 
-                                                "3)Show remote home directory listing\n" +
-                                                "4)Backup remote file\n" +
-                                                "5)Save web page\n") +
-                            colors.colorize("WARNING", "Q) Quit\n"), "u"):
+        match clean_user_input(construct_menu, "U"):
 
             case "1":
 
@@ -337,14 +362,20 @@ def main():
             case "3":
 
                 # Perform the "ls -lA ~" in a remote terminal and pipe the results of the command to the local machine.
-
-                remote_home_dir(cli_client)
+                if PARAMIKO_AVAILABLE and cli_client:
+                    remote_home_dir(cli_client)
+                else:
+                    print(colors.colorize("FAIL", message="\nInvalid option. Remote features are disabled."))
+                
 
             case "4":
 
                 # Perform a simple "cp" command on a remote machine and append the ".old" suffix to the copied file.
-
-                remote_backup(cli_client)
+                if PARAMIKO_AVAILABLE and cli_client:
+                    remote_backup(cli_client)
+                else:
+                    print(colors.colorize("FAIL", message="\nInvalid option. Remote features are disabled."))
+                
 
             case "5":
                 
@@ -360,7 +391,8 @@ def main():
                 # Quit the menu and end the program.
 
                 print(colors.colorize("WARNING","\nShutdown..."))
-                cli_client.close()
+                if cli_client:
+                    cli_client.close()
                 break
 
             case _:
