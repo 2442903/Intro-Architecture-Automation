@@ -9,24 +9,23 @@ class colors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-    def colorize(color: str, message: str):
+    @staticmethod
+    def colorize(color: str, message: str) -> str:
 
-        """
-        
+        """        
         Add specific formatting characters to a given string.
 
         Parameters:
-
-        - color (str): formatting attribute from a predefined list of characters.
-
-        - message (str): string to be prepended and appended with formatting.
+        - color (str): Formatting attribute (e.g., "FAIL", "OKGREEN").
+        - message (str): String to be colorized.
 
         Returns:
-
-        - output (str): colorized text by way of formatting characters at the start and end of the string 
-
+        - str: The colorized string.
         """
 
         # Add formatting characters to the beginning and end of a string.
         # Character specified by passed through attribute.
-        return  getattr(colors, color.upper()) + message + colors.ENDC
+        try:
+            return  getattr(colors, color.upper()) + message + colors.ENDC
+        except AttributeError:
+            return message # Return unformatted if color name is invalid
