@@ -1,19 +1,19 @@
 import datetime
-import urllib.request
-import urllib.error
 import socket
 import sys
-from colors import colorize
+import urllib.request
+import urllib.error
+import shlex
+from colors import colors
 
 # Attempt to import paramiko, as it's the only non-standard library.
 
 try:
     import paramiko
 except ImportError:
-    print(colorize("FAIL", "FATAL ERROR: The 'paramiko' library is required."))
-    print(colorize("WARNING", "Please install it using: pip install paramiko"))
+    print(colors.colorize("FAIL", "FATAL ERROR: The 'paramiko' library is required."))
+    print(colors.colorize("WARNING", "Please install it using: pip install paramiko"))
     sys.exit(1)
-
 
 class userLogin:
     PASSWORD = "Train1ng$"
@@ -40,7 +40,7 @@ def clean_user_input(msg: str, type_case: str = "") -> str:
 
     try:
         # Get input, colorize the prompt, and strip leading/trailing whitespace
-        data = input(colorize("OKCYAN", msg)).strip()
+        data = input(colors.colorize("OKCYAN", msg)).strip()
 
         # Standardize the input to a specific case if requested
         match type_case.upper():
@@ -53,8 +53,14 @@ def clean_user_input(msg: str, type_case: str = "") -> str:
 
     except (KeyboardInterrupt, EOFError):
         # Handle user interruption (Ctrl+C or Ctrl+D)
-        print(colorize("WARNING", "\nInput cancelled by user. Exiting..."))
+        print(colors.colorize("WARNING", "\nInput cancelled by user. Exiting..."))
         sys.exit(1) # Exit the program cleanly
+
+def wait_for_user():
+    """
+    Wait for the user to hit enter before displaying a menu once again.
+    """
+    input("Press Enter to continue...\n")
     
 def get_local_ip() -> str:
 
@@ -63,11 +69,13 @@ def get_local_ip() -> str:
     """
 
     try:
+
         # Connect to a well-known external IP (Google's DNS)
         # This doesn't send any data; it just finds the right local interface.
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
+        
     except Exception as e:
         return f"Could not determine IP: {e}"
 
@@ -78,48 +86,175 @@ def get_public_ip() -> str:
     """
 
     try:
+
         with urllib.request.urlopen("https://checkip.amazonaws.com") as response:
             ip = response.read().decode("utf-8").strip()
             return ip
+        
     except urllib.error.URLError as e:
         return f"Could not fetch public IP: {e.reason}"
     
-def exe_cli_command(cmd: str, remote: bool = False):
+def setup_cli() -> paramiko.SSHClient | None:
 
     """
-    Spawn a child process to run CLI commands and print the output to the terminal.
+    Prompt for credentials and establish a Paramiko SSH connection.
+    Returns the client object or None on failure.
+    """
+
+    try:
+
+        client = paramiko.SSHClient()
+        
+        # This avoids managing host keys.
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        # This is insecure for production, but within the bounds of the assignment it is permissable.
+        print(colors.colorize("OKCYAN", f"\nConnecting to {userLogin.USER}@{userLogin.REMOTE_IP}..."))
+        client.connect(userLogin.REMOTE_IP, username=userLogin.USER, password=userLogin.PASSWORD, timeout=10)
+        print(colors.colorize("OKGREEN", "Connection Successful!"))
+        return client
+
+    except paramiko.ssh_exception.AuthenticationException:
+        print(colors.colorize("FAIL", "\nAuthentication Failed. Check username/password."))
+    except paramiko.ssh_exception.NoValidConnectionsError:
+        print(colors.colorize("FAIL", f"\nUnable to connect to port 22 on {userLogin.REMOTE_IP}."))
+    except socket.timeout:
+        print(colors.colorize("FAIL", "\nConnection timed out."))
+    except Exception as e:
+        print(colors.colorize("FAIL", f"\nAn unexpected SSH error occurred: {e}"))
+        
+    return None
+    
+def cli_results(out: str, err: str,
+                success_prefix: str = "",
+                success_color: str = "OKCYAN",
+                error_prefix: str = "Remote error:\n",
+                error_color: str = "WARNING"):
+    
+    """
+    Prints the output and error strings from an SSH command
+    with custom formatting and colors.
 
     Parameters:
-    - cmd (str): The CLI command to execute.
-    - remote (bool): Executes the command on a remote machine if true (Default: False)
+    - out (str): The stdout text from the command.
+    - err (str): The stderr text from the command.
+    - success_prefix (str): Text to prepend to the output (e.Read. "Success:\n").
+    - success_color (str): The 'colors' class attribute for output.
+    - error_prefix (str): Text to prepend to the error (e.g., "Error:\n").
+    - error_color (str): The 'colors' class attribute for errors.
+
     """
 
-    #Paramiko implimentation needed here to replace pexpect to resolve issue of linux dependancy
+    # Some commands might print warnings to stderr even on success. 
+    
+    if err:
+        message = f"{error_prefix}{err}" if error_prefix else err
+        print(colors.colorize(error_color, message))
+    
+    # If there's no error, or if a command prints to both, display their output.
 
-def remote_home_dir():
+    if out:
+        message = f"{success_prefix}{out}" if success_prefix else out
+        print(colors.colorize(success_color, message))
+    
+def exe_cli_command(client: paramiko.SSHClient, command: str) -> tuple[str, str]:
 
     """
-    Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
+    Executes a command on the remote SSH client and returns the
+    decoded, stripped output and error streams.
+
+    Parameters:
+    - client (paramiko.SSHClient): The connected SSH client.
+    - command (str): The command string to execute.
+
+    Returns:
+    - tuple[str, str]: A tuple containing (stdout, stderr).
+    """
+
+    try:
+        # Execute the command
+        stdin, stdout, stderr = client.exec_command(command)
+
+        # IMPORTANT: Wait for the command to finish.
+        # This waits until the command is done, ensuring it can read the ENTIRE output.
+        exit_status = stdout.channel.recv_exit_status()
+
+        # Read and decode output and error
+        out = stdout.read().decode("utf-8").strip()
+        err = stderr.read().decode("utf-8").strip()
+        
+        return out, err
+
+    except Exception as e:
+        # Handle exceptions from the execution itself
+        err_msg = f"Failed to execute command '{command}': {e}"
+        print(colors.colorize("FAIL", err_msg))
+        return "", err_msg # Return empty output and the error message
+
+def remote_home_dir(client: paramiko.SSHClient):
+
+    """
+    Perform the "ls -lA ~" in a remote terminal and pipe the results of the command to the local machine.
     """
 
     # Append the command for listing the home directory to the remote ssh command then,
     # Execute the new command though the CLI function as a remote execution 
-    new_cmd = userLogin.REMOTE_CMD + " ls ~"
-    exe_cli_command(new_cmd, True)
+    print(colors.colorize("OKCYAN", "\nRemote Home Directory listing:"))
+    
+    # 1. Run the command
+    out, err = exe_cli_command(client, "ls -lA ~")
+    
+    # 2. Report the result
+    # We use the defaults: no prefix, OKCYAN for out, WARNING for err.
+    cli_results(out, err)
 
-def remote_backup(file: str):
+def remote_backup(client: paramiko.SSHClient):
 
     """
     Perform a simple "cp" command on a remote machine and append the ".old" suffix to the copied file.
 
     Parameters:
-    - file (str): The location and name of a remote file. 
+    - client (SSHClient): The client object created by the main loop
     """
 
     # Append the command for backing up a file to the remote ssh command then,
     #  pass to the execute function as a remote execution
-    new_cmd = userLogin.REMOTE_CMD + f" cp -v {file} {file}.old"
-    exe_cli_command(new_cmd, True)
+    file_path = clean_user_input("\nPlease input the full file path to back up: \n")
+    if not file_path:
+        print(colors.colorize("WARNING", "No file path provided."))
+        return
+
+    print(colors.colorize("OKCYAN", f"Attempting to back up '{file_path}'..."))
+
+    safe_path = ""
+
+    if file_path == "~":
+        # Handle just the home directory itself
+        safe_path = "~"
+
+    elif file_path.startswith("~/"):
+        # Path starts with tilde.
+        # Get the part AFTER '~/' (e.g., 'my file.txt')
+        rest_of_path = file_path[2:]
+
+        # Safely quote ONLY that part.
+        safe_rest_of_path = shlex.quote(rest_of_path)
+
+        # This creates a safe path like ~/'my file.txt'
+        safe_path = "~/" + safe_rest_of_path
+    else:
+        # Not a home directory path, quote the whole thing.
+        safe_path = shlex.quote(file_path)
+    command = f"cp -v {safe_path} {safe_path}.old"
+
+    # 1. Run the command
+    out, err = exe_cli_command(client, command)
+    
+    # 2. Report the result, with custom formatting
+    cli_results(out, err,
+                        success_prefix="Backup successful:\n",
+                        success_color="OKGREEN",
+                        error_color="FAIL")
 
 def copy_url_docs(url: str):
 
@@ -130,36 +265,45 @@ def copy_url_docs(url: str):
     - url (str): The target webpage which the user has entered to scrape.
     """
 
-    # By default the program only scrapes the .html,
-    # and saves it at the execution directory as the name it wass scraped as.
-    flags_str = str("")
+    if not (url.startswith("http://") or url.startswith("https://")):
+        url = "https://" + url
+        print(colors.colorize("OKCYAN", f"Prepending 'https://'. Using URL: {url}"))
 
-    if clean_user_input("\nDo you wish to change any of the default options? [y/N]\n", "u") == "Y":
+    try:
+        # Get a default filename from the URL, or use 'index.html'
+        default_name = url.split('/')[-1]
+        if not default_name or '.' not in default_name:
+            default_name = "index.html"
+            
+        file_name = clean_user_input(f"Enter file name to save as '{default_name}': ")
+        if not file_name:
+            file_name = default_name
 
-        if clean_user_input("Do you wish to download only HTML? [Y/n]\n", "u")== "N":
+        print(colors.colorize("OKCYAN", f"Downloading content from {url}..."))
+        
+        with urllib.request.urlopen(url) as response:
+            content = response.read()
+            
+        with open(file_name, 'wb') as f:
+            f.write(content)
+            
+        print(colors.colorize("OKGREEN", f"\nSuccessfully saved page to '{file_name}' ({len(content)} bytes)."))
 
-            # Recursively download the site with a depth of one and preserve links to maintain webpage funtionality offline.
-            print(colorize("OKCYAN", "Download all webpage data..."))
-            flags_str += "--recursive --level=1 --convert-links "
-
-        # Only offer to change the name of the download in the case that ONLY the .html is being downloaded.
-        elif clean_user_input("Do you wish to chnage the name of the download? [y/N]\n", "u") == "Y":
-
-            # Have Wget rename the index.html to the user generated input.
-            file_name = clean_user_input("Please provide a name for the download:\n")
-            flags_str += "--output-document=" + file_name
-
-    # This is mutally exclusive with changing the document name and downloading more than the html
-    if (flags_str == ""):
-
-            # If enabled Wget only downloads a copy, if the file timestamp has changed.           
-            # May not work on certain websites due to a lack of a timestamp. (e.g. Google.com)
-            print(colorize("OKCYAN", "Using default options..."))
-            flags_str += "--timestamping "
-
-    exe_cli_command(f"wget {flags_str} {url}")   
+    except (urllib.error.HTTPError, urllib.error.URLError) as e:
+        print(colors.colorize("FAIL", f"\nFailed to retrieve URL: {e.reason}"))
+    except ValueError as e:
+        print(colors.colorize("FAIL", f"\nInvalid URL: {e}"))
+    except IOError as e:
+        print(colors.colorize("FAIL", f"\nFailed to write file '{file_name}': {e}"))
+    except Exception as e:
+        print(colors.colorize("FAIL", f"\nAn unexpected error occurred: {e}"))
 
 def main():
+
+    cli_client = setup_cli()
+    if cli_client is None:
+        print(colors.colorize("FAIL", "Could not establish remote connection. Exiting."))
+        sys.exit(1)
 
     while True:
 
@@ -168,57 +312,63 @@ def main():
         Runs indefinately until the user enters "q" or "Q" into the terminal.
         """
     
-        match clean_user_input(colorize("OKBLUE", "Please choose an option:\n") +
-                            colorize("OKCYAN",  "1)Show date and time (local computer)\n"  + 
+        match clean_user_input(colors.colorize("OKBLUE", "Please choose an option:\n") +
+                            colors.colorize("OKCYAN",  "1)Show date and time (local computer)\n"  + 
                                                 "2)Show IP address (local computer)\n" + 
                                                 "3)Show remote home directory listing\n" +
                                                 "4)Backup remote file\n" +
                                                 "5)Save web page\n") +
-                            colorize("WARNING", "Q) Quit\n"), "u"):
+                            colors.colorize("WARNING", "Q) Quit\n"), "u"):
 
             case "1":
 
                 # Print the local date and time of the host machine. 
                 # Format: yyyy-mm-dd hh:mm:ss
 
-                print(colorize("OKCYAN", "\nThe current Date and Time:\n") + str(datetime.datetime.now().replace(microsecond = 0)), "\n")         
+                print(colors.colorize("OKCYAN", "\nThe current Date and Time:\n") + str(datetime.datetime.now().replace(microsecond = 0)), "\n")         
 
             case "2":
 
                 # Get local and public IP addresses
                 
-                print(colorize("OKCYAN", "\nYour private IP Address is: ") + get_local_ip())
-                print(colorize("OKCYAN", "Your public IP Address is:  ") + get_public_ip())
+                print(colors.colorize("OKCYAN", "\nYour private IP Address is: ") + get_local_ip())
+                print(colors.colorize("OKCYAN", "Your public IP Address is:  ") + get_public_ip())
                 
             case "3":
 
-                # Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
+                # Perform the "ls -lA ~" in a remote terminal and pipe the results of the command to the local machine.
 
-                print(colorize("OKCYAN", "\nRemote Home Directory listing:"))
-                remote_home_dir()
+                remote_home_dir(cli_client)
 
             case "4":
 
                 # Perform a simple "cp" command on a remote machine and append the ".old" suffix to the copied file.
 
-                remote_backup(clean_user_input("\nPlease input the file path: \n"))
+                remote_backup(cli_client)
 
             case "5":
                 
                 # Download the web documents of the user given url.
-                copy_url_docs(clean_user_input("\nPlease provide a valid URL: \n"))
+                url = clean_user_input("\nPlease provide a valid URL: \n")
+                if url:
+                    copy_url_docs(url)
+                else:
+                    print(colors.colorize("WARNING", "No URL provided."))
 
             case "Q":
 
                 # Quit the menu and end the program.
 
-                print(colorize("WARNING","\nShutdown..."))
+                print(colors.colorize("WARNING","\nShutdown..."))
+                cli_client.close()
                 break
 
             case _:
 
                 #Defualt case should catch as misinputs or invalid strings.
-                print(colorize("WARNING", "\nInvalid option.\n"))
+                print(colors.colorize("WARNING", "\nInvalid option.\n"))
+
+        wait_for_user()
 
 if __name__ == "__main__":
     main()
@@ -234,4 +384,3 @@ Used code from
     https://www.baeldung.com/linux/ssh-scp-password-subprocess
 
 """
-
