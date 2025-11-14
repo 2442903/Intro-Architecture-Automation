@@ -1,11 +1,18 @@
 import datetime
 import urllib.request
+import urllib.error
 import socket
+import sys
 from colors import colorize
+
+# Attempt to import paramiko, as it's the only non-standard library.
+
 try:
-    import pexpect
-except Exception as e:
-    print(colorize("FAIL", str(e)))
+    import paramiko
+except ImportError:
+    print(colorize("FAIL", "FATAL ERROR: The 'paramiko' library is required."))
+    print(colorize("WARNING", "Please install it using: pip install paramiko"))
+    sys.exit(1)
 
 
 class userLogin:
@@ -17,75 +24,82 @@ class userLogin:
 def clean_user_input(msg: str, type_case: str = "") -> str:
 
     """
-
     Sanitize user input before returning the data.
 
     Parameters:
-
-    - msg (str): user generated string to be sanitized.
-     
-    - type_case (char): select how to format the characters in the msg string (e.g. 'U' = upper, 'L' = lower)
+    - msg (str): The prompt message to display to the user.    
+    - type_case (char): A flag to control case formatting: (e.g. 'U' = upper, 'L' = lower)
 
     Returns:
+    - str: The sanitized, stripped, and case-formatted user input.
 
-    - data (str): user input that has been modified to cause fewer issues
-
-    """
-
-    # Strip leading and trailing spaces
-    data = input(colorize("OKCYAN", msg)).strip()
-
-    # If need be standardize the input to a specifiic case.
-    match type_case.upper():
-        case "U":
-            return data.upper()
-        case "L": 
-            return data.lower()
-        case _:
-            return data
-
-    
-
-def exe_cli_command(cmd: str, remote: bool = False):
-
-    """
-
-    Spawn a child process to run CLI commands and print the output to the terminal.
-
-    Parameters:
-
-    - cmd (str): The CLI command to execute.
-
-    - remote (bool): Executes the command on a remote machine if true (Default: False)
-
+    Raises:
+    - SystemExit: If the user triggers a KeyboardInterrupt (Ctrl+C) 
+                  or EOFError (Ctrl+D), the program will exit gracefully.
     """
 
     try:
+        # Get input, colorize the prompt, and strip leading/trailing whitespace
+        data = input(colorize("OKCYAN", msg)).strip()
 
-        # Spawn a CLI subprocess to handle input
-        ssh = pexpect.spawn(cmd)
+        # Standardize the input to a specific case if requested
+        match type_case.upper():
+            case "U":
+                return data.upper()
+            case "L":
+                return data.lower()
+            case _:
+                return data
 
-        # If executing code on a remote terminal, 
-        # Wait for the machine to request the password and pass it through.
-        if (remote == True):
-            ssh.expect("password:")
-            ssh.sendline(userLogin.PASSWORD)
-        
-        # Directly output by using a print function once child process has concluded.
-        ssh.expect(pexpect.EOF)
-        print(ssh.before.decode("utf-8"))
+    except (KeyboardInterrupt, EOFError):
+        # Handle user interruption (Ctrl+C or Ctrl+D)
+        print(colorize("WARNING", "\nInput cancelled by user. Exiting..."))
+        sys.exit(1) # Exit the program cleanly
+    
+def get_local_ip() -> str:
 
+    """
+    Get the local IP address by connecting to an external server.
+    """
+
+    try:
+        # Connect to a well-known external IP (Google's DNS)
+        # This doesn't send any data; it just finds the right local interface.
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
     except Exception as e:
+        return f"Could not determine IP: {e}"
 
-        # If an exception occurs, print the exception message as an error
-        print(colorize("FAIL", "An error has occurred:\n" + str(e)))
+def get_public_ip() -> str:
+
+    """
+    Get the public IP address from an external service.
+    """
+
+    try:
+        with urllib.request.urlopen("https://checkip.amazonaws.com") as response:
+            ip = response.read().decode("utf-8").strip()
+            return ip
+    except urllib.error.URLError as e:
+        return f"Could not fetch public IP: {e.reason}"
+    
+def exe_cli_command(cmd: str, remote: bool = False):
+
+    """
+    Spawn a child process to run CLI commands and print the output to the terminal.
+
+    Parameters:
+    - cmd (str): The CLI command to execute.
+    - remote (bool): Executes the command on a remote machine if true (Default: False)
+    """
+
+    #Paramiko implimentation needed here to replace pexpect to resolve issue of linux dependancy
 
 def remote_home_dir():
 
     """
-
     Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
-
     """
 
     # Append the command for listing the home directory to the remote ssh command then,
@@ -96,13 +110,10 @@ def remote_home_dir():
 def remote_backup(file: str):
 
     """
-
     Perform a simple "cp" command on a remote machine and append the ".old" suffix to the copied file.
 
     Parameters:
-
     - file (str): The location and name of a remote file. 
-
     """
 
     # Append the command for backing up a file to the remote ssh command then,
@@ -113,13 +124,10 @@ def remote_backup(file: str):
 def copy_url_docs(url: str):
 
     """
-
     Download the web documents of the user given url.
 
     Parameters:
-
     - url (str): The target webpage which the user has entered to scrape.
-
     """
 
     # By default the program only scrapes the .html,
@@ -153,14 +161,11 @@ def copy_url_docs(url: str):
 
 def main():
 
-    quit = False
-    while quit == False:
+    while True:
 
         """
-
         Simple while loop to maintain a CLI menu.
         Runs indefinately until the user enters "q" or "Q" into the terminal.
-
         """
     
         match clean_user_input(colorize("OKBLUE", "Please choose an option:\n") +
@@ -180,14 +185,11 @@ def main():
 
             case "2":
 
-                # Get the private ip address by way of getting the host socket information.
-                # Potential faliure case: if there is no internet connection expect the return of the loopback address instead.
-
-                print(colorize("OKCYAN", "\nYour private IP Address is:\n") + str(socket.gethostbyname(socket.gethostname())))
-
-                # To Check Public IP
-                print(colorize("OKCYAN", "\nYour puiblic IP Address is:\n") + str(urllib.request.urlopen("https://checkip.amazonaws.com").read().decode("utf-8")))
-
+                # Get local and public IP addresses
+                
+                print(colors.colorize("OKCYAN", "\nYour private IP Address is: ") + get_local_ip())
+                print(colors.colorize("OKCYAN", "Your public IP Address is:  ") + get_public_ip())
+                
             case "3":
 
                 # Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
@@ -211,8 +213,7 @@ def main():
                 # Quit the menu and end the program.
 
                 print(colorize("WARNING","\nShutdown..."))
-                quit = True
-                exit
+                break
 
             case _:
 
