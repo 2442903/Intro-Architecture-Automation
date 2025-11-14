@@ -8,6 +8,7 @@ class colors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+    GREY = '\033[38;5;8m'
 
     @staticmethod
     def colorize(*attributes, **kwargs) -> str:
