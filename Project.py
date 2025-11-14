@@ -1,11 +1,12 @@
 import datetime
+import urllib.request
 import socket
 from colors import colorize
 try:
     import pexpect
 except Exception as e:
     print(colorize("FAIL", str(e)))
-import urllib.request
+
 
 class userLogin:
     PASSWORD = "Train1ng$"
@@ -13,7 +14,7 @@ class userLogin:
     REMOTE_IP = "192.168.1.86"
     REMOTE_CMD = f"ssh {USER}@{REMOTE_IP}"
 
-def cleanUserInput(msg: str, type_case = ""):
+def clean_user_input(msg: str, type_case: str = "") -> str:
 
     """
 
@@ -45,7 +46,7 @@ def cleanUserInput(msg: str, type_case = ""):
 
     
 
-def exeCLICommand(cmd: str, remote = False):
+def exe_cli_command(cmd: str, remote: bool = False):
 
     """
 
@@ -79,7 +80,7 @@ def exeCLICommand(cmd: str, remote = False):
         # If an exception occurs, print the exception message as an error
         print(colorize("FAIL", "An error has occurred:\n" + str(e)))
 
-def remoteHomeDir():
+def remote_home_dir():
 
     """
 
@@ -90,9 +91,9 @@ def remoteHomeDir():
     # Append the command for listing the home directory to the remote ssh command then,
     # Execute the new command though the CLI function as a remote execution 
     new_cmd = userLogin.REMOTE_CMD + " ls ~"
-    exeCLICommand(new_cmd, True)
+    exe_cli_command(new_cmd, True)
 
-def remoteBackup(file: str):
+def remote_backup(file: str):
 
     """
 
@@ -107,9 +108,9 @@ def remoteBackup(file: str):
     # Append the command for backing up a file to the remote ssh command then,
     #  pass to the execute function as a remote execution
     new_cmd = userLogin.REMOTE_CMD + f" cp -v {file} {file}.old"
-    exeCLICommand(new_cmd, True)
+    exe_cli_command(new_cmd, True)
 
-def copyURLDocs(url: str):
+def copy_url_docs(url: str):
 
     """
 
@@ -125,19 +126,19 @@ def copyURLDocs(url: str):
     # and saves it at the execution directory as the name it wass scraped as.
     flags_str = str("")
 
-    if cleanUserInput("\nDo you wish to change any of the default options? [y/N]\n", "u") == "Y":
+    if clean_user_input("\nDo you wish to change any of the default options? [y/N]\n", "u") == "Y":
 
-        if cleanUserInput("Do you wish to download only HTML? [Y/n]\n", "u")== "N":
+        if clean_user_input("Do you wish to download only HTML? [Y/n]\n", "u")== "N":
 
             # Recursively download the site with a depth of one and preserve links to maintain webpage funtionality offline.
             print(colorize("OKCYAN", "Download all webpage data..."))
             flags_str += "--recursive --level=1 --convert-links "
 
         # Only offer to change the name of the download in the case that ONLY the .html is being downloaded.
-        elif cleanUserInput("Do you wish to chnage the name of the download? [y/N]\n", "u") == "Y":
+        elif clean_user_input("Do you wish to chnage the name of the download? [y/N]\n", "u") == "Y":
 
             # Have Wget rename the index.html to the user generated input.
-            file_name = cleanUserInput("Please provide a name for the download:\n")
+            file_name = clean_user_input("Please provide a name for the download:\n")
             flags_str += "--output-document=" + file_name
 
     # This is mutally exclusive with changing the document name and downloading more than the html
@@ -148,73 +149,78 @@ def copyURLDocs(url: str):
             print(colorize("OKCYAN", "Using default options..."))
             flags_str += "--timestamping "
 
-    exeCLICommand(f"wget {flags_str} {url}")   
+    exe_cli_command(f"wget {flags_str} {url}")   
 
-quit = False
-while quit == False:
+def main():
 
-    """
+    quit = False
+    while quit == False:
 
-    Simple while loop to maintain a CLI menu.
-    Runs indefinately until the user enters "q" or "Q" into the terminal.
+        """
 
-    """
+        Simple while loop to maintain a CLI menu.
+        Runs indefinately until the user enters "q" or "Q" into the terminal.
+
+        """
     
-    match cleanUserInput(colorize("OKBLUE", "Please choose an option:\n") +
-                        colorize("OKCYAN",  "1)Show date and time (local computer)\n"  + 
-                                            "2)Show IP address (local computer)\n" + 
-                                            "3)Show remote home directory listing\n" +
-                                            "4)Backup remote file\n" +
-                                            "5)Save web page\n") +
-                        colorize("WARNING", "Q) Quit\n"), "u"):
+        match clean_user_input(colorize("OKBLUE", "Please choose an option:\n") +
+                            colorize("OKCYAN",  "1)Show date and time (local computer)\n"  + 
+                                                "2)Show IP address (local computer)\n" + 
+                                                "3)Show remote home directory listing\n" +
+                                                "4)Backup remote file\n" +
+                                                "5)Save web page\n") +
+                            colorize("WARNING", "Q) Quit\n"), "u"):
 
-        case "1":
+            case "1":
 
-            # Print the local date and time of the host machine. 
-            # Format: yyyy-mm-dd hh:mm:ss
+                # Print the local date and time of the host machine. 
+                # Format: yyyy-mm-dd hh:mm:ss
 
-            print(colorize("OKCYAN", "\nThe current Date and Time:\n") + str(datetime.datetime.now().replace(microsecond = 0)), "\n")         
+                print(colorize("OKCYAN", "\nThe current Date and Time:\n") + str(datetime.datetime.now().replace(microsecond = 0)), "\n")         
 
-        case "2":
+            case "2":
 
-            # Get the private ip address by way of getting the host socket information.
-            # Potential faliure case: if there is no internet connection expect the return of the loopback address instead.
+                # Get the private ip address by way of getting the host socket information.
+                # Potential faliure case: if there is no internet connection expect the return of the loopback address instead.
 
-            print(colorize("OKCYAN", "\nYour private IP Address is:\n") + str(socket.gethostbyname(socket.gethostname())))
+                print(colorize("OKCYAN", "\nYour private IP Address is:\n") + str(socket.gethostbyname(socket.gethostname())))
 
-            # To Check Public IP
-            print(colorize("OKCYAN", "\nYour puiblic IP Address is:\n") + str(urllib.request.urlopen("https://checkip.amazonaws.com").read().decode("utf-8")))
+                # To Check Public IP
+                print(colorize("OKCYAN", "\nYour puiblic IP Address is:\n") + str(urllib.request.urlopen("https://checkip.amazonaws.com").read().decode("utf-8")))
 
-        case "3":
+            case "3":
 
-            # Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
+                # Perform the "ls ~" in a remote terminal and pipe the results of the command to the local machine.
 
-            print(colorize("OKCYAN", "\nRemote Home Directory listing:"))
-            remoteHomeDir()
+                print(colorize("OKCYAN", "\nRemote Home Directory listing:"))
+                remote_home_dir()
 
-        case "4":
+            case "4":
 
-            # Perform a simple "cp" command on a remote machine and append the ".old" suffix to the copied file.
+                # Perform a simple "cp" command on a remote machine and append the ".old" suffix to the copied file.
 
-            remoteBackup(cleanUserInput("\nPlease input the file path: \n"))
+                remote_backup(clean_user_input("\nPlease input the file path: \n"))
 
-        case "5":
-            
-            # Download the web documents of the user given url.
-            copyURLDocs(cleanUserInput("\nPlease provide a valid URL: \n"))
+            case "5":
+                
+                # Download the web documents of the user given url.
+                copy_url_docs(clean_user_input("\nPlease provide a valid URL: \n"))
 
-        case "Q":
+            case "Q":
 
-            # Quit the menu and end the program.
+                # Quit the menu and end the program.
 
-            print(colorize("WARNING","\nShutdown..."))
-            quit = True
-            exit
+                print(colorize("WARNING","\nShutdown..."))
+                quit = True
+                exit
 
-        case _:
+            case _:
 
-            #Defualt case should catch as misinputs or invalid strings.
-            print(colorize("WARNING", "\nInvalid option.\n"))
+                #Defualt case should catch as misinputs or invalid strings.
+                print(colorize("WARNING", "\nInvalid option.\n"))
+
+if __name__ == "__main__":
+    main()
 
 """ 
 
