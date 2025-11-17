@@ -1,55 +1,88 @@
 class colors:
     HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    GREY = '\033[38;5;8m'
     WARNING = '\033[93m'
     FAIL = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
-    GREY = '\033[38;5;8m'
+    
 
     @staticmethod
-    def colorize(*attributes, **kwargs) -> str:
+    def colorize(message: str):
+
         """
-        Applies multiple formatting attributes to a message string.
+        Factory method to create a new _ColorString builder.
 
-        Parameters:
-        - *attributes (str): Variable number of attribute names
-                             (e.g., "BOLD", "FAIL", "UNDERLINE").
-        - **kwargs: Allows passing 'message' as a keyword argument
-                    (e.g., message="This is a test") for compatibility.
-
-        Returns:
-        - str: The colorized and formatted string.
-        
         Example:
-        colors.colorize("BOLD", "FAIL", message="This is a bold failure.")
+        print(colors.colorize("My Text").bold().fail())
         """
+
+        return colors._ColorString(message)
+
+    class _ColorString:
+
+        """
+        An internal class that holds a string and a list of
+        attributes to apply, allowing for method chaining.
+        """
+
+        def __init__(self, message: str):
+            self._message = message
+            self._attributes = []
+
+        def __str__(self):
+
+            """
+            Generates the final formatted string when printed or cast to str.
+            """
+
+            prefix = "".join(self._attributes)
+            return f"{prefix}{self._message}{colors.ENDC}"
+
+        def __repr__(self):
+            # Represents the object in a way that's useful for debugging
+            return f'colors.colorize("{self._message}")' + \
+                   "".join([f".{attr[1]}" for attr in self._attributes])
+
+        # Each constant recieves its own method.
+        # Each method adds its code and returns 'self' to allow chaining.
+
+        def bold(self):
+            self._attributes.append(colors.BOLD)
+            return self
+
+        def underline(self):
+            self._attributes.append(colors.UNDERLINE)
+            return self
+
+        def header(self):
+            self._attributes.append(colors.HEADER)
+            return self
         
-        message = kwargs.get("message")
+        def grey(self):
+            self._attributes.append(colors.GREY)
+            return self
 
-        if message is None:
-            # If message wasn't a keyword, assume it's the
-            # last positional argument in *args
-            if not attributes:
-                return "" # Handle empty call (e.g., colors.colorize())
-            
-            # Unpack args: all but the last are attributes
-            # The last item is the message
-            *attributes, message = attributes
+        def blue(self):
+            self._attributes.append(colors.BLUE)
+            return self
 
-        prefix = ""
-        for attr in attributes:
-            try:
-                # Get the ANSI code for the attribute and add it to the prefix
-                code = getattr(colors, attr.upper())
-                prefix += code
+        def cyan(self):
+            self._attributes.append(colors.CYAN)
+            return self
 
-            except AttributeError:
-                # Handle invalid attribute names
-                print(f"(Colorize Warning: Unknown attribute '{attr}')")
-        
-        # Combine the prefix, message, and the universal reset code
-        return f"{prefix}{message}{colors.ENDC}"
+        def green(self):
+            self._attributes.append(colors.GREEN)
+            return self
+
+        def warning(self):
+            self._attributes.append(colors.WARNING)
+            return self
+
+        def fail(self):
+            self._attributes.append(colors.FAIL)
+            return self

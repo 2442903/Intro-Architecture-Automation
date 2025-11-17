@@ -1,62 +1,79 @@
-import datetime
 import socket
 import sys
-import urllib.request
-import urllib.error
-import shlex
+import subprocess
+from datetime import datetime
+from urllib import request, error
+from shlex import quote
 from colors import colors
+import standard_input
 
 # Attempt to import paramiko, as it's the only non-standard library.
 
 try:
+
     import paramiko
     PARAMIKO_AVAILABLE = True
-except ImportError:
-    print(colors.colorize("WARNING", 
-    "The 'paramiko' library was not found.\n" +
-    "Local functions (1, 2, 5) will still work.\n" + 
-    "Please install it using: pip install paramiko\n"))
-    PARAMIKO_AVAILABLE = False
 
+except ImportError:
+
+    print(colors.colorize("The 'paramiko' library was not found.\n" +
+                             "Local functions (1, 2, 5) will still work...\n").grey())
+
+    try:
+        # Get the permission of the user to attempt the installation of paramiko
+        choice = standard_input.std(colors.colorize("Would you like to attempt to install it now? [Y/n] ").cyan(), "U")
+
+    except (KeyboardInterrupt, EOFError):
+
+        choice = "N" # Default to 'No' on interrupt
+        
+    if choice == "N":
+
+        print(colors.colorize("Running in limited mode. Remote features are disabled.").warning())
+        PARAMIKO_AVAILABLE = False
+
+    else:
+        # Try to install using the 'pip' module
+        print(colors.colorize("Attempting to install 'paramiko' via pip...").cyan())
+        
+        try:
+            # Use 'sys.executable' to ensure we use the pip
+            # for the *current* python interpreter.
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "paramiko"],
+                capture_output=True,
+                text=True,
+                check=True # This will raise an exception if pip fails
+            )
+            
+            # Handle Success
+            print(colors.colorize("Successfully installed 'paramiko'.").green())
+            print(colors.colorize("Please restart the program to enable remote features.").cyan())
+            
+            # Must exit for Python to recognize the new module.
+            sys.exit(0) 
+
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            # Handle Failure
+            print(colors.colorize("Installation failed.").fail())
+
+            if hasattr(e, 'stderr') and e.stderr:
+
+                print(e.stderr) # Show pip's error message
+
+            else:
+
+                print(e)
+            
+            print(colors.colorize("Please install 'paramiko' manually (e.g., 'pip install paramiko')").fail())
+            print(colors.colorize("Running in limited mode. Remote features are disabled.").warning())
+            PARAMIKO_AVAILABLE = False
 class userLogin:
     PASSWORD = "Train1ng$"
     USER = "sysadmin"
     REMOTE_IP = "192.168.1.86"
-    REMOTE_CMD = f"ssh {USER}@{REMOTE_IP}"
-
-def clean_user_input(msg: str, type_case: str = "") -> str:
-
-    """
-    Sanitize user input before returning the data.
-
-    Parameters:
-    - msg (str): The prompt message to display to the user.    
-    - type_case (char): A flag to control case formatting: (e.g. 'U' = upper, 'L' = lower)
-
-    Returns:
-    - str: The sanitized, stripped, and case-formatted user input.
-
-    Raises:
-    - SystemExit: If the user triggers a KeyboardInterrupt (Ctrl+C) 
-                  or EOFError (Ctrl+D), the program will exit gracefully.
-    """
-
-    try:
-        # Get input, colorize the prompt, and strip leading/trailing whitespace
-        data = input(colors.colorize("OKCYAN", msg)).strip()
-
-        # Standardize the input to a specific case if requested
-        match type_case.upper():
-            case "U":
-                return data.upper()
-            case "L":
-                return data.lower()
-            case _:
-                return data
-
-    except (KeyboardInterrupt, EOFError): # Handle user interruption (Ctrl+C or Ctrl+D)
-        print(colors.colorize("WARNING", "\nInput cancelled by user. Exiting..."))
-        sys.exit(1) # Exit the program cleanly
+    REMOTE_MACHINE = f"{USER}@{REMOTE_IP}"
+    TIMEOUT = 10
 
 def wait_for_user():
 
@@ -64,7 +81,7 @@ def wait_for_user():
     Wait for the user to hit enter before displaying a menu once again.
     """
 
-    input("Press Enter to continue...\n")
+    input(colors.colorize("Press Enter to continue...\n").cyan())
     
 def get_local_ip() -> str:
 
@@ -91,11 +108,11 @@ def get_public_ip() -> str:
 
     try:
         # Check with AWS to get the public Ip of localhost.
-        with urllib.request.urlopen("https://checkip.amazonaws.com") as response:
-            ip = response.read().decode("utf-8").strip()
+        with request.urlopen("https://checkip.amazonaws.com") as response:
+            ip = response.read().decode("utf-8").strip() # The web page only displays your public IP.
             return ip
         
-    except urllib.error.URLError as e:
+    except error.URLError as e:
         return f"Could not fetch public IP: {e.reason}"
     
 def setup_cli() -> paramiko.SSHClient | None:
@@ -113,27 +130,25 @@ def setup_cli() -> paramiko.SSHClient | None:
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
         # This is insecure for production, but within the bounds of the assignment it is permissable.
-        print(colors.colorize("OKCYAN", f"\nConnecting to {userLogin.USER}@{userLogin.REMOTE_IP}..."))
-        client.connect(userLogin.REMOTE_IP, username=userLogin.USER, password=userLogin.PASSWORD, timeout=10)
-        print(colors.colorize("OKGREEN", "Connection Successful!"))
+        print(colors.colorize(f"\nConnecting to {userLogin.REMOTE_MACHINE}...").cyan())
+        client.connect(userLogin.REMOTE_IP, username = userLogin.USER, password = userLogin.PASSWORD, timeout = userLogin.TIMEOUT)
+        print(colors.colorize("Connection Successful!").green())
         return client
 
-    except paramiko.ssh_exception.AuthenticationException: # Failed to log in i.e incorrect user or password.
-        print(colors.colorize("FAIL", "\nAuthentication Failed. Check username/password."))
+    except paramiko.ssh_exception.AuthenticationException: # Failed to log in (e.g., incorrect user or password.)
+        print(colors.colorize("\nAuthentication Failed. Check username/password.").fail())
     except paramiko.ssh_exception.NoValidConnectionsError: # Failed to port forward or lost connection to the remote machine.
-        print(colors.colorize("FAIL", f"\nUnable to connect to port 22 on {userLogin.REMOTE_IP}."))
+        print(colors.colorize(f"\nUnable to connect to port 22 on {userLogin.REMOTE_IP}.").fail())
     except socket.timeout: # Failed to return anything in a timely manner.
-        print(colors.colorize("FAIL", "\nConnection timed out."))
+        print(colors.colorize("\nConnection timed out.").fail())
     except Exception as e: # Default case to catch anything not covered.
-        print(colors.colorize("FAIL", f"\nAn unexpected SSH error occurred: {e}"))
+        print(colors.colorize(f"\nAn unexpected SSH error occurred: {e}").fail())
         
     return None
     
 def cli_results(out: str, err: str,
                 success_prefix: str = "",
-                success_color: str = "OKCYAN",
-                error_prefix: str = "Remote error:\n",
-                error_color: str = "WARNING"):
+                error_prefix: str = "Remote error:\n",):
     
     """
     Prints the output and error strings from an SSH command
@@ -143,9 +158,7 @@ def cli_results(out: str, err: str,
     - out (str): The stdout text from the command.
     - err (str): The stderr text from the command.
     - success_prefix (str): Text to prepend to the output (e.Read. "Success:\n").
-    - success_color (str): The 'colors' class attribute for output.
     - error_prefix (str): Text to prepend to the error (e.g., "Error:\n").
-    - error_color (str): The 'colors' class attribute for errors.
 
     """
 
@@ -153,13 +166,13 @@ def cli_results(out: str, err: str,
     
     if err:
         message = f"{error_prefix}{err}" if error_prefix else err
-        print(colors.colorize(error_color, message))
+        print(colors.colorize(message).warning())
     
     # If there's no error, or if a command prints to both, display their output.
 
     if out:
         message = f"{success_prefix}{out}" if success_prefix else out
-        print(colors.colorize(success_color, message))
+        print(colors.colorize(message).cyan())
     
 def exe_cli_command(client: paramiko.SSHClient, command: str) -> tuple[str, str]:
 
@@ -192,7 +205,7 @@ def exe_cli_command(client: paramiko.SSHClient, command: str) -> tuple[str, str]
     except Exception as e:
         # Handle exceptions from the execution itself
         err_msg = f"Failed to execute command '{command}': {e}"
-        print(colors.colorize("FAIL", err_msg))
+        print(colors.colorize(err_msg).fail())
         return "", err_msg # Return empty output and the error message
 
 def remote_home_dir(client: paramiko.SSHClient):
@@ -203,7 +216,7 @@ def remote_home_dir(client: paramiko.SSHClient):
 
     # Append the command for listing the home directory to the remote ssh command then,
     # Execute the new command though the CLI function as a remote execution 
-    print(colors.colorize("OKCYAN", "\nRemote Home Directory listing:"))
+    print(colors.colorize("\nRemote Home Directory listing:").cyan())
     
     # Run the command
     out, err = exe_cli_command(client, "ls -lA ~")
@@ -223,12 +236,12 @@ def remote_backup(client: paramiko.SSHClient):
 
     # Append the command for backing up a file to the remote ssh command then,
     #  pass to the execute function as a remote execution
-    file_path = clean_user_input("\nPlease input the full file path to back up: \n")
+    file_path = standard_input.std("\nPlease input the full file path to back up: \n")
     if not file_path:
-        print(colors.colorize("WARNING", "No file path provided."))
+        print(colors.colorize("No file path provided.").warning())
         return
 
-    print(colors.colorize("OKCYAN", f"Attempting to back up '{file_path}'..."))
+    print(colors.colorize(f"Attempting to back up '{file_path}'...").cyan())
 
     safe_path = ""
 
@@ -242,13 +255,13 @@ def remote_backup(client: paramiko.SSHClient):
         rest_of_path = file_path[2:]
 
         # Safely quote ONLY that part.
-        safe_rest_of_path = shlex.quote(rest_of_path)
+        safe_rest_of_path = quote(rest_of_path)
 
         # This creates a safe path like ~/'my file.txt'
         safe_path = "~/" + safe_rest_of_path
     else:
         # Not a home directory path, quote the whole thing.
-        safe_path = shlex.quote(file_path)
+        safe_path = quote(file_path)
     command = f"cp -v {safe_path} {safe_path}.old"
 
     # Run the command
@@ -271,7 +284,7 @@ def copy_url_docs(url: str):
     # Append http if not present.
     if not (url.startswith("http://") or url.startswith("https://")):
         url = "https://" + url
-        print(colors.colorize("OKCYAN", f"Prepending 'https://'. Using URL: {url}"))
+        print(colors.colorize(f"Prepending 'https://'. Using URL: {url}").cyan())
 
     try:
         # Get a default filename from the URL, or use 'index.html'
@@ -279,30 +292,30 @@ def copy_url_docs(url: str):
         if not default_name or '.' not in default_name:
             default_name = "index.html"
     
-        file_name = clean_user_input(f"Enter file name to save '{default_name}' as: ")
+        file_name = standard_input.std(f"Enter file name to save '{default_name}' as: ")
         if not file_name:
             file_name = default_name
 
-        print(colors.colorize("OKCYAN", f"Downloading content from {url}..."))
+        print(colors.colorize(f"Downloading content from {url}...").cyan())
         
         # Make a request for the web page and save the data returned.
-        with urllib.request.urlopen(url) as response:
+        with request.urlopen(url) as response:
             content = response.read()
 
         # Write the content of the web page to a file on the system.    
         with open(file_name, 'wb') as f:
             f.write(content)
             
-        print(colors.colorize("OKGREEN", f"\nSuccessfully saved page to '{file_name}' ({len(content)} bytes)."))
+        print(colors.colorize(f"\nSuccessfully saved page to '{file_name}' ({len(content)} bytes).").green())
 
-    except (urllib.error.HTTPError, urllib.error.URLError) as e: # Check for issues with a lack of http or a non functional url
-        print(colors.colorize("FAIL", f"\nFailed to retrieve URL: {e.reason}"))
+    except (error.HTTPError, error.URLError) as e: # Check for issues with a lack of http or a non functional url
+        print(colors.colorize(f"\nFailed to retrieve URL: {e.reason}").fail())
     except ValueError as e: # Check for invalid objects when asking for the url
-        print(colors.colorize("FAIL", f"\nInvalid URL: {e}"))
+        print(colors.colorize(f"\nInvalid URL: {e}").fail())
     except IOError as e: # Check for any issues writing to a file on the system
-        print(colors.colorize("FAIL", f"\nFailed to write file '{file_name}': {e}"))
+        print(colors.colorize(f"\nFailed to write file '{file_name}': {e}").fail())
     except Exception as e: # Default case to catch anything else
-        print(colors.colorize("FAIL", f"\nAn unexpected error occurred: {e}"))
+        print(colors.colorize(f"\nAn unexpected error occurred: {e}").fail())
 
 def main():
 
@@ -315,49 +328,31 @@ def main():
         Runs indefinately until the user enters "q" or "Q" into the terminal.
         """
 
-        construct_menu = (
-            colors.colorize("OKBLUE",
-            "Please choose an option:\n") +
-            colors.colorize("OKCYAN", 
-            "1) Show date and time (local computer)\n" +
-            "2) Show IP address (local computer)\n")
-            )
+        construct_menu = (str(colors.colorize("Please choose an option:\n").blue()) + str(colors.colorize("1) Show date and time (local computer)\n" + "2) Show IP address (local computer)\n").cyan()))
         
         # Only add remote options if paramiko (and thus the client) is available
         if PARAMIKO_AVAILABLE and cli_client:
-            construct_menu = (construct_menu + 
-                colors.colorize("OKCYAN", 
-                "3) Show remote home directory listing\n" +
-                "4) Backup remote file\n"))
+            construct_menu = (construct_menu + str(colors.colorize("3) Show remote home directory listing\n" + "4) Backup remote file\n").cyan()))
         else:
-            construct_menu = (construct_menu +
-                colors.colorize("GREY", 
-                "3) Show remote home directory listing\n" +
-                "4) Backup remote file\n"))
+            construct_menu = (construct_menu + str(colors.colorize("3) Show remote home directory listing\n" + "4) Backup remote file\n").grey()))
         
-        construct_menu = (
-            construct_menu + 
-            colors.colorize("OKCYAN", 
-            "5) Save web page\n") + 
-            colors.colorize("WARNING", 
-            "Q) Quit\n")
-            )
+        construct_menu = (construct_menu + str(colors.colorize("5) Save web page\n").cyan()) + str(colors.colorize("Q) Quit\n").warning()))
     
-        match clean_user_input(construct_menu, "U"):
+        match standard_input.std(construct_menu, "U"):
 
             case "1":
 
                 # Print the local date and time of the host machine. 
                 # Format: yyyy-mm-dd hh:mm:ss
 
-                print(colors.colorize("OKCYAN", "\nThe current Date and Time:\n") + str(datetime.datetime.now().replace(microsecond = 0)), "\n")         
+                print(colors.colorize("\nThe current Date and Time:\n").cyan() + datetime.now().replace(microsecond = 0) + "\n")         
 
             case "2":
 
                 # Get local and public IP addresses
                 
-                print(colors.colorize("OKCYAN", "\nYour private IP Address is: ") + get_local_ip())
-                print(colors.colorize("OKCYAN", "Your public IP Address is:  ") + get_public_ip())
+                print(colors.colorize("\nYour private IP Address is: ").cyan() + get_local_ip())
+                print(colors.colorize("Your public IP Address is:  ").cyan() + get_public_ip())
                 
             case "3":
 
@@ -365,7 +360,7 @@ def main():
                 if PARAMIKO_AVAILABLE and cli_client:
                     remote_home_dir(cli_client)
                 else:
-                    print(colors.colorize("FAIL", message="\nInvalid option. Remote features are disabled."))
+                    print(colors.colorize("\nInvalid option. Remote features are disabled.").fail())
                 
 
             case "4":
@@ -374,23 +369,23 @@ def main():
                 if PARAMIKO_AVAILABLE and cli_client:
                     remote_backup(cli_client)
                 else:
-                    print(colors.colorize("FAIL", message="\nInvalid option. Remote features are disabled."))
+                    print(colors.colorize("\nInvalid option. Remote features are disabled.").fail())
                 
 
             case "5":
                 
                 # Download the web documents of the user given url.
-                url = clean_user_input("\nPlease provide a valid URL: \n")
+                url = standard_input.std("\nPlease provide a valid URL: \n")
                 if url:
                     copy_url_docs(url)
                 else:
-                    print(colors.colorize("WARNING", "No URL provided."))
+                    print(colors.colorize("No URL provided.").warning())
 
             case "Q":
 
                 # Quit the menu and end the program.
 
-                print(colors.colorize("WARNING","\nShutdown..."))
+                print(colors.colorize("\nShutdown...").warning())
                 if cli_client:
                     cli_client.close()
                 break
@@ -398,7 +393,7 @@ def main():
             case _:
 
                 #Defualt case should catch as misinputs or invalid strings.
-                print(colors.colorize("WARNING", "\nInvalid option.\n"))
+                print(colors.colorize("\nInvalid option.\n").warning())
 
         wait_for_user()
 
