@@ -1,4 +1,4 @@
-from colors import colors
+from utils.colors import colors
 import sys
 
 def std(msg: str, type_case: str = "") -> str:
