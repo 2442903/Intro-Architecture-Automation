@@ -40,7 +40,7 @@ A simple Python CLI tool that provides a menu with six functions for managing a 
     python Project.py
     ```
 
-## Screenshot
+## Flowchart
 
 Here is a a flowchart of the basic functions of the program:
 
