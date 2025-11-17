@@ -5,7 +5,7 @@ from datetime import datetime
 from urllib import request, error
 from shlex import quote
 from colors import colors
-import standard_input
+import uinput
 
 # Attempt to import paramiko, as it's the only non-standard library.
 
@@ -16,12 +16,13 @@ try:
 
 except ImportError:
 
-    print(colors.colorize("The 'paramiko' library was not found.\n" +
-                             "Local functions (1, 2, 5) will still work...\n").grey())
+    print(colors.colorize(
+        "The 'paramiko' library was not found.\n" +
+        "Local functions (1, 2, 5) will still work...\n").grey())
 
     try:
         # Get the permission of the user to attempt the installation of paramiko
-        choice = standard_input.std(colors.colorize("Would you like to attempt to install it now? [Y/n] ").cyan(), "U")
+        choice = uinput.std(colors.colorize("Would you like to attempt to install it now? [Y/n] ").cyan(), "U")
 
     except (KeyboardInterrupt, EOFError):
 
@@ -236,7 +237,7 @@ def remote_backup(client: paramiko.SSHClient):
 
     # Append the command for backing up a file to the remote ssh command then,
     #  pass to the execute function as a remote execution
-    file_path = standard_input.std("\nPlease input the full file path to back up: \n")
+    file_path = uinput.std("\nPlease input the full file path to back up: \n")
     if not file_path:
         print(colors.colorize("No file path provided.").warning())
         return
@@ -292,7 +293,7 @@ def copy_url_docs(url: str):
         if not default_name or '.' not in default_name:
             default_name = "index.html"
     
-        file_name = standard_input.std(f"Enter file name to save '{default_name}' as: ")
+        file_name = uinput.std(f"Enter file name to save '{default_name}' as: ")
         if not file_name:
             file_name = default_name
 
@@ -328,17 +329,25 @@ def main():
         Runs indefinately until the user enters "q" or "Q" into the terminal.
         """
 
-        construct_menu = (str(colors.colorize("Please choose an option:\n").blue()) + str(colors.colorize("1) Show date and time (local computer)\n" + "2) Show IP address (local computer)\n").cyan()))
+        construct_menu = (str(colors.colorize("Please choose an option:\n").blue()) + 
+                          str(colors.colorize("1) Show date and time (local computer)\n" + 
+                                              "2) Show IP address (local computer)\n").cyan()))
         
         # Only add remote options if paramiko (and thus the client) is available
         if PARAMIKO_AVAILABLE and cli_client:
-            construct_menu = (construct_menu + str(colors.colorize("3) Show remote home directory listing\n" + "4) Backup remote file\n").cyan()))
+            construct_menu = (construct_menu + 
+                              str(colors.colorize("3) Show remote home directory listing\n" + 
+                                                  "4) Backup remote file\n").cyan()))
         else:
-            construct_menu = (construct_menu + str(colors.colorize("3) Show remote home directory listing\n" + "4) Backup remote file\n").grey()))
+            construct_menu = (construct_menu + 
+                              str(colors.colorize("3) Show remote home directory listing\n" + 
+                                                  "4) Backup remote file\n").grey()))
         
-        construct_menu = (construct_menu + str(colors.colorize("5) Save web page\n").cyan()) + str(colors.colorize("Q) Quit\n").warning()))
+        construct_menu = (construct_menu + 
+                          str(colors.colorize("5) Save web page\n").cyan()) + 
+                          str(colors.colorize("Q) Quit\n").warning()))
     
-        match standard_input.std(construct_menu, "U"):
+        match uinput.std(construct_menu, "U"):
 
             case "1":
 
@@ -375,7 +384,7 @@ def main():
             case "5":
                 
                 # Download the web documents of the user given url.
-                url = standard_input.std("\nPlease provide a valid URL: \n")
+                url = uinput.std("\nPlease provide a valid URL: \n")
                 if url:
                     copy_url_docs(url)
                 else:
@@ -406,8 +415,17 @@ Used code from
 
     https://www.geeksforgeeks.org/python/display-hostname-ip-address-python/
 
-    https://brightdata.com/blog/how-tos/wget-with-python
+    https://medium.com/featurepreneur/ssh-in-python-using-paramiko-e08fd8a039f7
 
-    https://www.baeldung.com/linux/ssh-scp-password-subprocess
+    https://www.geeksforgeeks.org/python/how-to-download-files-from-urls-with-python/
 
+    https://programminghistorian.org/en/lessons/working-with-web-pages
+
+    https://peps.python.org/pep-0008/#naming-conventions
+
+    https://git-scm.com/learn/learning-git-basic-git-commands
+
+    https://www.geeksforgeeks.org/python/dunder-magic-methods-python/
+
+    https://www.codecademy.com/resources/docs/python/dunder-methods/str
 """
