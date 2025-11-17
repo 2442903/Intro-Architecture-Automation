@@ -4,8 +4,8 @@ import subprocess
 from datetime import datetime
 from urllib import request, error
 from shlex import quote
-from colors import colors
-import uinput
+from utils.colors import colors
+import utils.uinput as uinput
 
 # Attempt to import paramiko, as it's the only non-standard library.
 
@@ -425,4 +425,5 @@ Used code from
     https://www.geeksforgeeks.org/python/dunder-magic-methods-python/
 
     https://www.codecademy.com/resources/docs/python/dunder-methods/str
+    
 """
