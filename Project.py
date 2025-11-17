@@ -222,8 +222,8 @@ def remote_home_dir(client: paramiko.SSHClient):
     # Run the command
     out, err = exe_cli_command(client, "ls -lA ~")
     
-    # Report the result
-    # We use the defaults: no prefix, OKCYAN for out, WARNING for err.
+    # Report the results,
+    # Use the default prefixes.
     cli_results(out, err)
 
 def remote_backup(client: paramiko.SSHClient):
@@ -269,10 +269,7 @@ def remote_backup(client: paramiko.SSHClient):
     out, err = exe_cli_command(client, command)
     
     # Report the results
-    cli_results(out, err,
-                        success_prefix="Backup successful:\n",
-                        success_color="OKGREEN",
-                        error_color="FAIL")
+    cli_results(out, err, success_prefix="Backup successful:\n")
 
 def copy_url_docs(url: str):
 
@@ -354,14 +351,14 @@ def main():
                 # Print the local date and time of the host machine. 
                 # Format: yyyy-mm-dd hh:mm:ss
 
-                print(colors.colorize("\nThe current Date and Time:\n").cyan() + datetime.now().replace(microsecond = 0) + "\n")         
+                print(colors.colorize("\nThe current Date and Time:\n").cyan(), datetime.now().replace(microsecond = 0), "\n")         
 
             case "2":
 
                 # Get local and public IP addresses
                 
-                print(colors.colorize("\nYour private IP Address is: ").cyan() + get_local_ip())
-                print(colors.colorize("Your public IP Address is:  ").cyan() + get_public_ip())
+                print(colors.colorize("\nYour private IP Address is: ").cyan(), get_local_ip())
+                print(colors.colorize("Your public IP Address is:  ").cyan(), get_public_ip())
                 
             case "3":
 
