@@ -287,7 +287,7 @@ def copy_url_docs(url: str):
     try:
         # Get a default filename from the URL, or use 'index.html'
         default_name = url.split('/')[-1]
-        if not default_name or .com in default_name or '.' not in default_name:
+        if not default_name or '.com' in default_name or '.' not in default_name:
             default_name = "index.html"
     
         file_name = uinput.std(f"Enter file name to save '{default_name}' as: ")
