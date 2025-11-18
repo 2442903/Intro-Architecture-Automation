@@ -1,2 +1,15 @@
+# Python cache
+__pycache__/
+
+# HTML files you create
 index.html
-__pycache__
+
+# IDE configuration
+.vscode/
+
+# Virtual environments
+.venv/
+
+#dev environment files
+requirements-dev.txt
+tests/

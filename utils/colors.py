@@ -34,6 +34,15 @@ class colors:
             self._message = message
             self._attributes = []
 
+        def __eq__(self, other):
+
+            """
+            Allows Python to compare this object with others based on 
+            their final string value (text + ANSI codes).
+            """
+            
+            return str(self) == str(other)
+
         def __str__(self):
 
             """
