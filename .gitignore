@@ -13,3 +13,4 @@ index.html
 #dev environment files
 requirements-dev.txt
 tests/
+.pytest_cache/
