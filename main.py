@@ -1,3 +1,35 @@
+"""
+--------------------------------------------------------------------------------
+Assignment:     011
+Description:    A cross-platform CLI tool for system 
+                administration and automation. It provides an interface 
+                for secure shell server management and local utility tasks.
+
+Features:
+    - Secure SSH: Uses 'paramiko' for encrypted, persistent connections with 
+      secure password entry (no echo).
+    - Smart Remote Backup: Handles tilde expansion (~) and path sanitation 
+      to safely backup files on remote Linux servers.
+    - Web Archiving: Replicates 'wget' functionality using 'urllib' 
+      to save HTML content from webpages cross-platform.
+    - Network Intelligence: Detects local network interfaces and 
+      fetches public IP addresses.
+    - Graceful Degradation: Automatically handles missing libraries by offering 
+      to install them or running in a limited "local-only" mode.
+
+Dependencies:
+    - paramiko
+    * Note: The script includes logic to auto-install this if missing.
+
+Usage:
+    Run directly from the terminal:
+    $ python SystemAdmin_Toolkit.py
+
+Author:         2442903
+Date:           December 1, 2025
+--------------------------------------------------------------------------------
+"""
+
 import socket
 import sys
 import subprocess
@@ -427,5 +459,6 @@ Used code from
     https://www.codecademy.com/resources/docs/python/dunder-methods/str
     
 """
+
 
 
