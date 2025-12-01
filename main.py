@@ -438,27 +438,5 @@ def main():
 if __name__ == "__main__":
     main()
 
-""" 
-
-Used code from
-
-    https://www.geeksforgeeks.org/python/display-hostname-ip-address-python/
-
-    https://medium.com/featurepreneur/ssh-in-python-using-paramiko-e08fd8a039f7
-
-    https://www.geeksforgeeks.org/python/how-to-download-files-from-urls-with-python/
-
-    https://programminghistorian.org/en/lessons/working-with-web-pages
-
-    https://peps.python.org/pep-0008/#naming-conventions
-
-    https://git-scm.com/learn/learning-git-basic-git-commands
-
-    https://www.geeksforgeeks.org/python/dunder-magic-methods-python/
-
-    https://www.codecademy.com/resources/docs/python/dunder-methods/str
-    
-"""
-
 
 
